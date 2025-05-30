@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物品借用系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            background-color: #f0f9ff;
+        }
+        .dropdown-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .dropdown-content.show {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+        }
+        .modal-content {
+            animation: modalFadeIn 0.3s;
+        }
+        @keyframes modalFadeIn {
+            from {transform: translateY(-20px); opacity: 0;}
+            to {transform: translateY(0); opacity: 1;}
+        }
+        .tab-active {
+            border-bottom: 3px solid #2563eb;
+            color: #2563eb;
+        }
+        /* 新增的訊息提示樣式 */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.3s ease-in-out;
+        }
+        .message-box.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .message-box.success {
+            background-color: #d1fae5; /* green-100 */
+            color: #065f46; /* green-800 */
+        }
+        .message-box.error {
+            background-color: #fee2e2; /* red-100 */
+            color: #991b1b; /* red-800 */
+        }
+        .message-box.info {
+            background-color: #dbeafe; /* blue-100 */
+            color: #1e40af; /* blue-800 */
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen flex flex-col items-center p-4">
+        <div class="w-full max-w-4xl bg-white rounded-xl shadow-lg p-6 mt-8">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-blue-600">物品借用系統</h1>
+                <button id="admin-btn" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none flex items-center">
+                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    管理者
+                </button>
+            </div>
+            
+            <div class="flex border-b border-gray-200 mb-6">
+                <button id="tab-borrow" class="px-6 py-3 font-medium tab-active">借用申請</button>
+                <button id="tab-records" class="px-6 py-3 font-medium text-gray-500">借用紀錄</button>
+                <button id="tab-history" class="px-6 py-3 font-medium text-gray-500">歷史紀錄</button>
+                <button id="tab-items" class="px-6 py-3 font-medium text-gray-500 hidden">物品管理</button>
+            </div>
+            
+            <div id="borrow-form" class="mb-8">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">選擇借用物品</h2>
+                
+                <div class="relative mb-4">
+                    <div id="dropdown-button" class="flex justify-between items-center w-full p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50">
+                        <span id="selected-item" class="text-gray-700">請選擇物品</span>
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                    <div id="dropdown-content" class="dropdown-content absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+                        <ul id="item-list" class="py-2">
+                            </ul>
+                        <div id="add-item-container" class="border-t border-gray-200 p-3 hidden">
+                            <div class="flex">
+                                <input type="text" id="new-item-input" class="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="新增物品...">
+                                <button id="add-item-btn" class="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none">
+                                    新增
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="borrower-name" class="block text-sm font-medium text-gray-700 mb-1">借用人姓名 <span class="text-red-500">*</span></label>
+                            <input type="text" id="borrower-name" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="department-code" class="block text-sm font-medium text-gray-700 mb-1">部門代號 <span class="text-red-500">*</span></label>
+                            <input type="text" id="department-code" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="extension" class="block text-sm font-medium text-gray-700 mb-1">單位分機 <span class="text-red-500">*</span></label>
+                        <input type="text" id="extension" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="borrow-date" class="block text-sm font-medium text-gray-700 mb-1">借用日期 <span class="text-red-500">*</span></label>
+                            <input type="date" id="borrow-date" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="return-date" class="block text-sm font-medium text-gray-700 mb-1">預計歸還日期 <span class="text-red-500">*</span></label>
+                            <input type="date" id="return-date" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">備註</label>
+                        <textarea id="purpose" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    </div>
+                    
+                    <button id="submit-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition duration-200 mt-2">
+                        提交借用申請
+                    </button>
+                </div>
+            </div>
+            
+            <div id="current-records" class="hidden">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">目前借用紀錄</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-3 px-2 text-left border-b">物品名稱</th>
+                                <th class="py-3 px-2 text-left border-b">借用人</th>
+                                <th class="py-3 px-2 text-left border-b">部門</th>
+                                <th class="py-3 px-2 text-left border-b">分機</th>
+                                <th class="py-3 px-2 text-left border-b">借用日期</th>
+                                <th class="py-3 px-2 text-left border-b">預計歸還</th>
+                                <th class="py-3 px-2 text-left border-b">狀態</th>
+                                <th class="py-3 px-2 text-left border-b">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="borrow-records">
+                            </tbody>
+                    </table>
+                </div>
+                <p id="no-records" class="text-center text-gray-500 py-4">目前沒有借用紀錄</p>
+            </div>
+            
+            <div id="history-records" class="hidden">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-xl font-semibold text-gray-700">歷史借用紀錄</h2>
+                    <div class="flex items-center"> <button id="export-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 focus:outline-none flex items-center">
+                            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            匯出Excel
+                        </button>
+                        <button id="add-history-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:outline-none flex items-center ml-2 hidden">
+                            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            新增紀錄
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-4 flex flex-wrap gap-2">
+                    <input type="text" id="search-input" placeholder="搜尋..." class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select id="filter-year" class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">所有年份</option>
+                    </select>
+                    <select id="filter-department" class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">所有部門</option>
+                    </select>
+                    <button id="filter-btn" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 focus:outline-none">
+                        篩選
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-3 px-2 text-left border-b">物品名稱</th>
+                                <th class="py-3 px-2 text-left border-b">借用人</th>
+                                <th class="py-3 px-2 text-left border-b">部門</th>
+                                <th class="py-3 px-2 text-left border-b">分機</th>
+                                <th class="py-3 px-2 text-left border-b">借用日期</th>
+                                <th class="py-3 px-2 text-left border-b">歸還日期</th>
+                                <th class="py-3 px-2 text-left border-b">備註</th>
+                                <th id="history-action-header" class="py-3 px-2 text-left border-b hidden">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-records-body">
+                            </tbody>
+                    </table>
+                </div>
+                <p id="no-history" class="text-center text-gray-500 py-4">目前沒有歷史紀錄</p>
+            </div>
+            
+            <div id="items-management" class="hidden">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">物品管理</h2>
+                
+                <div class="mb-4 flex">
+                    <input type="text" id="manage-item-input" class="flex-grow p-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="輸入物品名稱...">
+                    <button id="manage-add-item-btn" class="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none">
+                        新增物品
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="py-3 px-4 text-left border-b">物品名稱</th>
+                                <th class="py-3 px-4 text-left border-b">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="manage-items-list">
+                            </tbody>
+                    </table>
+                </div>
+                <p id="no-items" class="text-center text-gray-500 py-4">目前沒有物品</p>
+                
+                <div class="mt-8 border-t pt-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700">管理者設定</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="current-password" class="block text-sm font-medium text-gray-700 mb-1">目前密碼</label>
+                            <input type="password" id="current-password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">新密碼</label>
+                            <input type="password" id="new-password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-1">確認新密碼</label>
+                            <input type="password" id="confirm-password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <button id="change-password-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:outline-none">
+                            變更密碼
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="return-modal" class="modal">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">確認歸還</h3>
+                <p class="text-gray-600 mb-6">請問是否確認歸還此物品？</p>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancel-return" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none">
+                        取消
+                    </button>
+                    <button id="confirm-return" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none">
+                        是，確認歸還
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="delete-modal" class="modal">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">確認刪除</h3>
+                <p id="delete-message" class="text-gray-600 mb-6">請問是否確認刪除此項目？</p>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancel-delete" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none">
+                        取消
+                    </button>
+                    <button id="confirm-delete" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none">
+                        是，確認刪除
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="admin-login-modal" class="modal">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">管理者登入</h3>
+                <div class="mb-4">
+                    <label for="admin-email" class="block text-sm font-medium text-gray-700 mb-1">管理者 Email</label>
+                    <input type="email" id="admin-email" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" value="admin@example.com">
+                </div>
+                <div class="mb-4">
+                    <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-1">管理者密碼</label>
+                    <input type="password" id="admin-password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div id="admin-error" class="text-red-500 mb-4 hidden">密碼錯誤，請重新輸入</div>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancel-admin-login" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none">
+                        取消
+                    </button>
+                    <button id="confirm-admin-login" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none">
+                        登入
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="add-history-modal" class="modal">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content bg-white rounded-xl shadow-xl p-6 max-w-lg w-full">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">新增歷史紀錄</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="history-item" class="block text-sm font-medium text-gray-700 mb-1">物品名稱 <span class="text-red-500">*</span></label>
+                        <select id="history-item" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </select>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="history-name" class="block text-sm font-medium text-gray-700 mb-1">借用人姓名 <span class="text-red-500">*</span></label>
+                            <input type="text" id="history-name" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="history-department" class="block text-sm font-medium text-gray-700 mb-1">部門代號 <span class="text-red-500">*</span></label>
+                            <input type="text" id="history-department" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="history-extension" class="block text-sm font-medium text-gray-700 mb-1">單位分機 <span class="text-red-500">*</span></label>
+                        <input type="text" id="history-extension" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="history-borrow-date" class="block text-sm font-medium text-gray-700 mb-1">借用日期 <span class="text-red-500">*</span></label>
+                            <input type="date" id="history-borrow-date" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="history-return-date" class="block text-sm font-medium text-gray-700 mb-1">歸還日期 <span class="text-red-500">*</span></label>
+                            <input type="date" id="history-return-date" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="history-purpose" class="block text-sm font-medium text-gray-700 mb-1">備註</label>
+                        <textarea id="history-purpose" rows="2" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button id="cancel-add-history" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none">
+                        取消
+                    </button>
+                    <button id="confirm-add-history" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none">
+                        新增
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="global-message-box" class="message-box hidden"></div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getDatabase, ref, push, set, remove, onValue, update } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+
+        // 將 Firebase 模組和函數暴露到 window 物件，以便 app.js 可以訪問
+        window.firebaseApp = initializeApp;
+        window.firebaseDb = { getDatabase, ref, push, set, remove, onValue, update };
+        window.firebaseAuth = { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword };
+    </script>
+    
+    <script src="app.js"></script>
+    
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'938d76fa07e5f228',t:'MTc0NjA4MzQ4Ni4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>
